@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <meta name="description" content="Visualizador Sinóptico Integrado">
+    <meta name="author" content="">
+    <title>Visualizador Sinóptico - Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Fuentes personalizadas para esta plantilla (rutas locales) -->
+    <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
+
+    <!-- Estilos personalizados para esta plantilla (ruta local) -->
+    <link href="css/sb-admin-2.min.css" rel="stylesheet">
+
+    <!-- Scripts y Estilos de la Aplicación Sinóptico -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <!-- Librerías para exportación -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        /* Paleta de colores y fuentes base */
+        body {
+            font-family: 'Inter', 'Nunito', sans-serif;
+            background-color: #f1f5f9; /* slate-100 */
+            color: #334155; /* slate-700 */
+        }
+        /* Estilos para la barra de desplazamiento */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; } /* slate-200 */
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; } /* slate-400 */
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; } /* slate-500 */
+        /* Animaciones mejoradas */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideInFromRight {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes dropdown-show {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        .animate-slide-in { animation: slideInFromRight 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+        .dropdown-menu { animation: dropdown-show 0.15s ease-out forwards; }
+        /* Estilos para el árbol jerárquico */
+        .sidebar-sticky { position: sticky; top: 1.5rem; height: calc(100vh - 12rem); } /* Ajustado para el footer de SB Admin */
+        .tree-item-content.active { background-color: #dbeafe; color: #1e40af; font-weight: 600; } /* blue-200, blue-800 */
+        .tree-item .lucide-chevron-right { transition: transform 0.2s ease-in-out; }
+        .tree-item.expanded > .tree-item-content .lucide-chevron-right { transform: rotate(90deg); }
+        /* Líneas de conexión del árbol */
+        .tree-container ul { position: relative; padding-left: 1.25rem; }
+        .tree-container li { position: relative; list-style: none; }
+        .tree-container li::before {
+            content: ''; position: absolute; top: 0; left: -0.625rem;
+            width: 1px; height: 100%; background-color: #cbd5e1; /* slate-300 */
+        }
+        .tree-container li::after {
+            content: ''; position: absolute; top: 1.375rem; left: -0.625rem;
+            width: 0.625rem; height: 1px; background-color: #cbd5e1; /* slate-300 */
+        }
+        .tree-container li.is-last::before { height: 1.375rem; }
+        #tree-container > li { padding-left: 0; }
+        #tree-container > li::before, #tree-container > li::after { display: none; }
+        /* Estilos para la vista de detalle */
+        .detail-section-header {
+            font-size: 0.75rem; font-weight: 600; color: #475569; /* slate-600 */
+            text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; /* slate-200 */
+            padding-bottom: 0.5rem; margin-top: 1.5rem; margin-bottom: 1rem;
+        }
+        /* Estilos para Notificaciones Toast */
+        #toast-container {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 1050;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        @keyframes toast-in {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toast-out {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(120%); opacity: 0; }
+        }
+        .toast {
+            animation: toast-in 0.5s cubic-bezier(0.21, 1.02, 0.73, 1) forwards;
+        }
+        .toast.closing {
+            animation: toast-out 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+    </style>
+</head>
+<body id="page-top">
+    <!-- Page Wrapper -->
+    <div id="wrapper">
+
+        <!-- Sidebar -->
+        <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+
+            <!-- Sidebar - Brand -->
+            <a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.html">
+                <div class="sidebar-brand-icon">
+                    <i class="fas fa-industry"></i>
+                </div>
+                <div class="sidebar-brand-text mx-3">Gestión PRO</div>
+            </a>
+
+            <!-- Divider -->
+            <hr class="sidebar-divider my-0">
+
+            <!-- Nav Item - Dashboard -->
+            <li class="nav-item">
+                <a class="nav-link" href="index.html">
+                    <i class="fas fa-fw fa-tachometer-alt"></i>
+                    <span>Dashboard</span></a>
+            </li>
+
+            <!-- Divider -->
+            <hr class="sidebar-divider">
+
+            <!-- Heading -->
+            <div class="sidebar-heading">
+                Módulos Principales
+            </div>
+
+            <!-- Nav Item - Gestión de Datos Collapse Menu -->
+            <li class="nav-item" id="nav-gestion">
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseGestion"
+                    aria-expanded="false" aria-controls="collapseGestion">
+                    <i class="fas fa-fw fa-database"></i>
+                    <span>Gestión de Datos</span>
+                </a>
+                <div id="collapseGestion" class="collapse" aria-labelledby="headingGestion"
+                    data-parent="#accordionSidebar">
+                    <div class="bg-white py-2 collapse-inner rounded">
+                        <h6 class="collapse-header">Tablas de Datos:</h6>
+                        <a class="collapse-item" href="app1.html?view=productos">Productos</a>
+                        <a class="collapse-item" href="app1.html?view=subproductos">Subproductos</a>
+                        <a class="collapse-item" href="app1.html?view=insumos">Insumos</a>
+                        <a class="collapse-item" href="app1.html?view=clientes">Clientes</a>
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Configuración:</h6>
+                        <a class="collapse-item" href="app1.html?view=sectores">Sectores</a>
+                        <a class="collapse-item" href="app1.html?view=procesos">Procesos</a>
+                    </div>
+                </div>
+            </li>
+
+            <!-- Nav Item - Visualizador Sinóptico (Enlace Directo) -->
+            <li class="nav-item" id="nav-visualizador">
+                <a class="nav-link" href="app2.html">
+                    <i class="fas fa-fw fa-project-diagram"></i>
+                    <span>Visualizador Sinóptico</span>
+                </a>
+            </li>
+            
+            <!-- Nav Item - Arbol de producto -->
+            <li class="nav-item" id="nav-arboles">
+                <a class="nav-link" href="app1.html?view=arboles">
+                    <i class="fas fa-fw fa-sitemap"></i>
+                    <span>Árboles de Producto</span>
+                </a>
+            </li>
+
+            <!-- Divider -->
+            <hr class="sidebar-divider d-none d-md-block">
+
+            <!-- Sidebar Toggler (Sidebar) -->
+            <div class="text-center d-none d-md-inline">
+                <button class="rounded-circle border-0" id="sidebarToggle"></button>
+            </div>
+
+        </ul>
+        <!-- End of Sidebar -->
+
+        <!-- Content Wrapper -->
+        <div id="content-wrapper" class="d-flex flex-column">
+            <!-- Main Content -->
+            <div id="content">
+                <!-- Topbar -->
+                <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+                    <!-- Sidebar Toggle (Topbar) -->
+                    <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+                        <i class="fa fa-bars"></i>
+                    </button>
+                    <!-- Topbar Navbar -->
+                    <ul class="navbar-nav ml-auto">
+                        <div class="topbar-divider d-none d-sm-block"></div>
+                        <!-- Nav Item - User Information -->
+                        <li class="nav-item dropdown no-arrow">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <span id="user-name" class="mr-2 d-none d-lg-inline text-gray-600 small">Usuario Admin</span>
+                                <img id="user-photo" class="img-profile rounded-circle"
+                                    src="https://source.unsplash.com/QAB-WJcbgJk/60x60">
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                <!-- End of Topbar -->
+
+                <!-- Begin Page Content -->
+                <div class="container-fluid">
+                    <!-- Contenido de la aplicación Sinóptico -->
+                    <div class="flex h-screen">
+                        <!-- Contenido Principal: Vista de Árbol -->
+                        <main class="w-2/3 p-0 pr-md-3 overflow-y-auto custom-scrollbar">
+                            
+                            <!-- Encabezado Mejorado -->
+                            <header class="mb-4">
+                                <div class="flex justify-between items-center">
+                                    <div class="bg-gradient-to-r from-blue-700 to-blue-500 text-white p-4 rounded-xl shadow-lg w-full">
+                                        <h1 class="text-3xl font-extrabold tracking-tight">Sinóptico de Producto</h1>
+                                        <p class="text-blue-200 mt-1">Explore la jerarquía completa desde clientes hasta insumos.</p>
+                                    </div>
+                                </div>
+                            </header>
+                            
+                            <div class="bg-white p-4 rounded-xl shadow-lg">
+                                <!-- Controles de Búsqueda y Filtro -->
+                                <div class="flex flex-col md:flex-row gap-4 mb-4">
+                                    <div class="relative flex-grow">
+                                        <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
+                                        <input type="text" id="search-input" placeholder="Buscar en el árbol..." class="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300">
+                                    </div>
+                                    <div class="flex gap-4">
+                                        <!-- Botón de exportación -->
+                                        <div class="relative" id="export-menu-container">
+                                            <button id="export-btn" class="flex items-center gap-2 w-full h-full px-4 py-3 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all duration-200 shadow-sm">
+                                                <i data-lucide="download" class="w-4 h-4"></i>
+                                                <span>Exportar</span>
+                                                <i data-lucide="chevron-down" class="w-4 h-4 ml-1"></i>
+                                            </button>
+                                            <div id="export-dropdown" class="absolute z-10 right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl hidden dropdown-menu origin-top-right">
+                                                <a href="#" id="export-xlsx-btn" class="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 transition-colors duration-150">
+                                                    <i data-lucide="file-spreadsheet" class="w-5 h-5 text-green-600"></i>
+                                                    Exportar a Excel (.xlsx)
+                                                </a>
+                                                <a href="#" id="export-pdf-btn" class="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 transition-colors duration-150">
+                                                    <i data-lucide="file-text" class="w-5 h-5 text-red-600"></i>
+                                                    Exportar a PDF
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <!-- Botón de filtro por tipo -->
+                                        <div class="relative">
+                                            <button id="type-filter-btn" class="flex items-center gap-2 w-full h-full px-4 py-3 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-all duration-200 shadow-sm">
+                                                <i data-lucide="filter" class="w-4 h-4"></i>
+                                                <span>Filtrar</span>
+                                                <i data-lucide="chevron-down" class="w-4 h-4 ml-auto"></i>
+                                            </button>
+                                            <div id="type-filter-dropdown" class="absolute z-10 right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl hidden p-2 dropdown-menu origin-top-right">
+                                                <label class="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer"><input type="checkbox" data-type="cliente" class="type-filter-cb h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked> <span class="text-sm font-medium">Cliente</span></label>
+                                                <label class="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer"><input type="checkbox" data-type="producto" class="type-filter-cb h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked> <span class="text-sm font-medium">Producto</span></label>
+                                                <label class="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer"><input type="checkbox" data-type="subproducto" class="type-filter-cb h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked> <span class="text-sm font-medium">Subproducto</span></label>
+                                                <label class="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer"><input type="checkbox" data-type="insumo" class="type-filter-cb h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked> <span class="text-sm font-medium">Insumo</span></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Barra de Filtros Activos -->
+                                <div class="flex items-center gap-3 mb-4 p-2 bg-slate-50 rounded-lg">
+                                    <span class="text-sm font-semibold text-slate-600 flex-shrink-0">Filtros de Cliente:</span>
+                                    <div id="active-filters-bar" class="flex flex-wrap gap-2"></div>
+                                    <div class="relative ml-auto">
+                                        <button id="add-client-filter-btn" class="flex items-center justify-center w-8 h-8 bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300 transition-all duration-200">
+                                            <i data-lucide="plus" class="w-4 h-4"></i>
+                                        </button>
+                                        <div id="add-client-filter-dropdown" class="absolute z-10 right-0 mt-2 w-64 bg-white border border-slate-200 rounded-lg shadow-xl hidden dropdown-menu origin-top-right"></div>
+                                    </div>
+                                </div>
+                                
+                                <ul id="tree-container" class="tree-container">
+                                    <!-- El árbol jerárquico se generará aquí -->
+                                </ul>
+                            </div>
+                        </main>
+                        <!-- Sidebar: Vista de Detalle -->
+                        <aside class="w-1/3 p-0 pl-md-3">
+                            <div id="detail-container" class="sidebar-sticky">
+                                <!-- Placeholder Mejorado -->
+                                <div class="flex flex-col items-center justify-center h-full text-center bg-white rounded-xl shadow-lg p-8 animate-fade-in">
+                                    <div class="flex items-center justify-center w-24 h-24 bg-slate-100 rounded-full mb-6">
+                                        <i data-lucide="mouse-pointer-click" class="w-12 h-12 text-slate-400"></i>
+                                    </div>
+                                    <h2 class="text-xl font-bold text-slate-800">Seleccione un elemento</h2>
+                                    <p class="text-slate-500 mt-2 max-w-xs">Haga clic en un cliente, producto o insumo del árbol para ver sus detalles aquí.</p>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                    <!-- Fin del contenido de la aplicación -->
+                </div>
+                <!-- /.container-fluid -->
+            </div>
+            <!-- End of Main Content -->
+            <!-- Footer -->
+            <footer class="sticky-footer bg-white">
+                <div class="container my-auto">
+                    <div class="copyright text-center my-auto">
+                        <span>Copyright &copy; Gestión PRO 2024</span>
+                    </div>
+                </div>
+            </footer>
+            <!-- End of Footer -->
+        </div>
+        <!-- End of Content Wrapper -->
+    </div>
+    <!-- End of Page Wrapper -->
+
+    <!-- Contenedor para notificaciones Toast -->
+    <div id="toast-container"></div>
+
+    <!-- Scroll to Top Button-->
+    <a class="scroll-to-top rounded" href="#page-top">
+        <i class="fas fa-angle-up"></i>
+    </a>
+
+    <!-- Bootstrap y scripts locales -->
+    <script src="vendor/jquery/jquery.min.js"></script>
+    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="/__/firebase/11.10.0/firebase-app-compat.js"></script>
+    <script src="/__/firebase/11.10.0/firebase-auth-compat.js"></script>
+    
+    <!-- Firebase Initialization -->
+    <script src="/__/firebase/init.js"></script>
+
+    <!-- Scripts de la aplicación -->
+    <script src="js/main-app.js"></script>
+    <script src="js/app2-auth.js"></script>
+    <script src="js/app2-logic.js"></script>
+
+</body>
+</html>
