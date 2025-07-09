@@ -57,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const toast = document.createElement('div');
         toast.className = `toast flex items-center w-full max-w-xs p-4 text-gray-500 bg-white rounded-lg shadow-lg`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-atomic', 'true');
         toast.innerHTML = `
             <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 ${iconMap[type].color} bg-gray-100 rounded-lg">
                 <i data-lucide="${iconMap[type].name}" class="w-5 h-5"></i>
