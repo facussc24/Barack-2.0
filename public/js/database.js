@@ -1,6 +1,15 @@
 // Importar las funciones necesarias del SDK de Firebase
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+    getFirestore,
+    collection,
+    getDocs,
+    setDoc,
+    addDoc,
+    updateDoc,
+    deleteDoc,
+    doc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 // El siguiente import es para la autenticación, si se necesita aquí.
 // import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -24,3 +33,27 @@ export const db = getFirestore(app);
 
 // Opcional: exportar también la referencia de autenticación si se necesita
 // export const auth = getAuth(app);
+
+// --- Funciones de ayuda para CRUD en Firestore ---
+export async function fetchCollectionData(collectionName) {
+    const querySnapshot = await getDocs(collection(db, collectionName));
+    return querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function createDocument(collectionName, data, id = null) {
+    if (id) {
+        await setDoc(doc(db, collectionName, id), data);
+        return id;
+    } else {
+        const docRef = await addDoc(collection(db, collectionName), data);
+        return docRef.id;
+    }
+}
+
+export async function updateDocument(collectionName, id, data) {
+    await updateDoc(doc(db, collectionName, id), data);
+}
+
+export async function deleteDocument(collectionName, id) {
+    await deleteDoc(doc(db, collectionName, id));
+}

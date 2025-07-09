@@ -1,4 +1,20 @@
-import { db } from './database.js';
+import {
+    db,
+    fetchCollectionData,
+    createDocument,
+    updateDocument,
+    deleteDocument
+} from './database.js';
+
+const dbCache = {
+    productos: [],
+    subproductos: [],
+    insumos: [],
+    clientes: [],
+    sectores: [],
+    procesos: [],
+    arboles: []
+};
 
 // --- VIEW CONFIG (Mantenemos la configuración de vistas) ---
 const viewConfig = {
@@ -7,7 +23,7 @@ const viewConfig = {
     arboles: { title: 'Árboles de Producto' },
     productos: {
         title: 'Productos', dataKey: 'productos',
-        columns: [ { key: 'id', label: 'Código Interno' }, { key: 'material', label: 'Material' }, { key: 'clienteId', label: 'Cliente', format: (val) => db.clientes.find(c => c.id === val)?.descripcion || 'N/A' } ],
+        columns: [ { key: 'id', label: 'Código Interno' }, { key: 'material', label: 'Material' }, { key: 'clienteId', label: 'Cliente', format: (val) => dbCache.clientes.find(c => c.id === val)?.descripcion || 'N/A' } ],
         fields: [
             { key: 'id', label: 'Código Interno', type: 'text', required: true },
             { key: 'codigo_cliente', label: 'Código de Cliente', type: 'text' },
@@ -72,7 +88,7 @@ const viewConfig = {
     },
     procesos: {
         title: 'Procesos', dataKey: 'procesos',
-        columns: [ { key: 'id', label: 'Código' }, { key: 'descripcion', label: 'Descripción' }, { key: 'sectorId', label: 'Sector', format: (val) => db.sectores.find(s => s.id === val)?.descripcion || 'N/A' } ],
+        columns: [ { key: 'id', label: 'Código' }, { key: 'descripcion', label: 'Descripción' }, { key: 'sectorId', label: 'Sector', format: (val) => dbCache.sectores.find(s => s.id === val)?.descripcion || 'N/A' } ],
         fields: [ 
             { key: 'id', label: 'Código', type: 'text', required: true }, 
             { key: 'descripcion', label: 'Descripción', type: 'text', required: true },
@@ -98,6 +114,18 @@ const addNewButton = document.getElementById('add-new-button');
 const addButtonText = document.getElementById('add-button-text');
 const modalContainer = document.getElementById('modal-container');
 const toastContainer = document.getElementById('toast-container');
+
+async function loadCollection(name) {
+    dbCache[name] = await fetchCollectionData(name);
+}
+
+async function ensureCollections(names = []) {
+    for (const n of names) {
+        if (!Array.isArray(dbCache[n]) || dbCache[n].length === 0) {
+            await loadCollection(n);
+        }
+    }
+}
 
 // --- FUNCIONES DE UTILIDAD Y NOTIFICACIONES ---
 function refreshIcons() {
@@ -163,7 +191,8 @@ function showConfirmationModal(title, message, onConfirm) {
 }
 
 // --- FUNCIONES DE RENDERIZADO ---
-function renderDashboard() {
+async function renderDashboard() {
+    await ensureCollections(['productos','insumos','clientes','sectores']);
     let content = `
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-3 bg-white p-6 rounded-lg shadow">
@@ -171,10 +200,10 @@ function renderDashboard() {
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-6">`;
     
     const stats = [
-        { label: 'Productos', value: db.productos.length, icon: 'package' },
-        { label: 'Insumos', value: db.insumos.length, icon: 'beaker' },
-        { label: 'Clientes', value: db.clientes.length, icon: 'users' },
-        { label: 'Sectores', value: db.sectores.length, icon: 'factory' }
+        { label: 'Productos', value: dbCache.productos.length, icon: 'package' },
+        { label: 'Insumos', value: dbCache.insumos.length, icon: 'beaker' },
+        { label: 'Clientes', value: dbCache.clientes.length, icon: 'users' },
+        { label: 'Sectores', value: dbCache.sectores.length, icon: 'factory' }
     ];
 
     stats.forEach(stat => {
@@ -192,7 +221,7 @@ function renderDashboard() {
             <h3 class="text-xl font-bold text-gray-800 mb-6">Explorar Sectores y Procesos</h3>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">`;
     
-    db.sectores.forEach(sector => {
+    dbCache.sectores.forEach(sector => {
         content += `
             <button data-action="open-sector-modal" data-sector-id="${sector.id}" class="bg-gray-50 p-5 rounded-lg shadow-sm flex flex-col items-center justify-center text-center transition-transform transform hover:-translate-y-1 hover:shadow-lg border">
                 <i data-lucide="${sector.icon}" class="h-10 w-10 text-gray-600 mb-3 pointer-events-none"></i>
@@ -249,7 +278,7 @@ function renderTable(data, config) {
     refreshIcons();
 }
 
-function switchView(viewName) {
+async function switchView(viewName) {
     currentView = viewName;
     const config = viewConfig[viewName];
     if (!config) {
@@ -263,7 +292,7 @@ function switchView(viewName) {
 
     if (viewName === 'dashboard') {
         dashboardContainer.classList.remove('hidden');
-        renderDashboard();
+        await renderDashboard();
     } else if (viewName === 'arboles') {
         arbolesContainer.classList.remove('hidden');
         renderArbolesInitialView();
@@ -276,7 +305,8 @@ function switchView(viewName) {
         addButtonText.textContent = `Agregar ${config.title.slice(0, -1)}`;
         const spinner = document.getElementById('loading-spinner');
         if (spinner) spinner.classList.remove('hidden');
-        currentData = [...db[config.dataKey]];
+        await loadCollection(config.dataKey);
+        currentData = [...dbCache[config.dataKey]];
         renderTable(currentData, config);
         if (spinner) spinner.classList.add('hidden');
     }
@@ -300,7 +330,7 @@ function openModal(item = null) {
         if (field.type === 'search-select') {
             let selectedItemName = 'Ninguno seleccionado';
             if (isEditing && value) {
-                const sourceDB = field.searchKey === 'cliente' ? db.clientes : db.sectores;
+                const sourceDB = field.searchKey === 'cliente' ? dbCache.clientes : dbCache.sectores;
                 const foundItem = sourceDB.find(dbItem => dbItem.id === value);
                 if(foundItem) selectedItemName = foundItem.descripcion;
             }
@@ -358,7 +388,7 @@ function openModal(item = null) {
     });
 }
 
-function handleFormSubmit(e) {
+async function handleFormSubmit(e) {
     e.preventDefault();
     const form = e.target;
     const modalElement = form.closest('.fixed');
@@ -377,33 +407,36 @@ function handleFormSubmit(e) {
 
     const dataKey = config.dataKey;
     if (id) { // Editing
-        const index = db[dataKey].findIndex(item => item.id === id);
+        const index = dbCache[dataKey].findIndex(item => item.id === id);
         if (index !== -1) {
-            db[dataKey][index] = { ...db[dataKey][index], ...newItem };
+            await updateDocument(dataKey, id, newItem);
+            dbCache[dataKey][index] = { ...dbCache[dataKey][index], ...newItem };
             showToast('Registro actualizado con éxito.', 'success');
         }
     } else { // Creating
         const newId = newItem.id;
-        if (db[dataKey].some(item => item.id === newId)) {
+        if (dbCache[dataKey].some(item => item.id === newId)) {
             showToast(`Error: El código "${newId}" ya existe.`, 'error');
             return;
         }
-        db[dataKey].push(newItem);
+        await createDocument(dataKey, newItem, newId);
+        dbCache[dataKey].push(newItem);
         showToast('Registro creado con éxito.', 'success');
     }
     
     modalElement.remove();
-    switchView(currentView);
+    await switchView(currentView);
 }
 
-function deleteItem(id) {
-    showConfirmationModal('Confirmar Eliminación', '¿Estás seguro de que quieres eliminar este registro? Esta acción no se puede deshacer.', () => {
+async function deleteItem(id) {
+    showConfirmationModal('Confirmar Eliminación', '¿Estás seguro de que quieres eliminar este registro? Esta acción no se puede deshacer.', async () => {
         const dataKey = viewConfig[currentView].dataKey;
-        const index = db[dataKey].findIndex(item => item.id === id);
+        const index = dbCache[dataKey].findIndex(item => item.id === id);
         if (index !== -1) {
-            db[dataKey].splice(index, 1);
+            await deleteDocument(dataKey, id);
+            dbCache[dataKey].splice(index, 1);
             showToast('Registro eliminado.', 'info');
-            switchView(currentView);
+            await switchView(currentView);
         } else {
             showToast('Error: No se pudo encontrar el registro.', 'error');
         }
@@ -419,7 +452,7 @@ function openDetailsModal(item) {
     config.fields.forEach(field => {
         let value = item[field.key] || 'N/A';
         if (field.type === 'search-select') {
-            const sourceDB = field.searchKey === 'cliente' ? db.clientes : db.sectores;
+            const sourceDB = field.searchKey === 'cliente' ? dbCache.clientes : dbCache.sectores;
             const foundItem = sourceDB.find(dbItem => dbItem.id === value);
             value = foundItem ? foundItem.descripcion : 'N/A';
         }
@@ -477,7 +510,7 @@ function exportDetailsToPdf(item, config) {
     config.fields.forEach(field => {
         let value = item[field.key] || 'N/A';
         if (field.type === 'search-select') {
-             const sourceDB = field.searchKey === 'cliente' ? db.clientes : db.sectores;
+             const sourceDB = field.searchKey === 'cliente' ? dbCache.clientes : dbCache.sectores;
              const foundItem = sourceDB.find(dbItem => dbItem.id === value);
              value = foundItem ? foundItem.descripcion : 'N/A';
         }
@@ -512,7 +545,7 @@ function renderArbolesInitialView() {
 }
 
 function renderArbolDetalle() {
-    const cliente = db.clientes.find(c => c.id === arbolActivo.clienteId);
+    const cliente = dbCache.clientes.find(c => c.id === arbolActivo.clienteId);
     arbolesContainer.innerHTML = `
         <div class="bg-white rounded-xl shadow-md p-6">
             <div class="flex justify-between items-start mb-4 pb-4 border-b">
@@ -575,7 +608,7 @@ function renderNodo(nodo) {
 function openProductSearchModal() {
     const modalId = `product-search-modal-${Date.now()}`;
     let clientOptions = '<option value="">Todos los Clientes</option>';
-    db.clientes.forEach(c => {
+    dbCache.clientes.forEach(c => {
         clientOptions += `<option value="${c.id}">${c.descripcion}</option>`;
     });
 
@@ -633,7 +666,7 @@ function openProductSearchModal() {
 
 function handleProductSearch(term, clientId, resultsContainer) {
     term = term.toLowerCase();
-    let results = db.productos.filter(p => {
+    let results = dbCache.productos.filter(p => {
         const termMatch = term === '' || p.id.toLowerCase().includes(term) || p.material.toLowerCase().includes(term);
         const clientMatch = !clientId || p.clienteId === clientId;
         return termMatch && clientMatch;
@@ -645,7 +678,7 @@ function handleProductSearch(term, clientId, resultsContainer) {
     }
     
     resultsContainer.innerHTML = `<div class="space-y-1">` + results.map(p => {
-        const cliente = db.clientes.find(c => c.id === p.clienteId);
+        const cliente = dbCache.clientes.find(c => c.id === p.clienteId);
         return `
         <button data-product-id="${p.id}" class="w-full text-left p-2.5 bg-gray-50 hover:bg-blue-100 rounded-md border flex justify-between items-center transition">
             <div>
@@ -659,10 +692,10 @@ function handleProductSearch(term, clientId, resultsContainer) {
 }
 
 function handleProductSelect(productId) {
-    const producto = db.productos.find(p => p.id === productId);
+    const producto = dbCache.productos.find(p => p.id === productId);
     if (!producto) return;
 
-    arbolActivo = db.arboles.find(a => a.productoPrincipalId === productId);
+    arbolActivo = dbCache.arboles.find(a => a.productoPrincipalId === productId);
 
     if (arbolActivo) {
         showToast(`Árbol existente para "${producto.material}" cargado.`, 'info');
@@ -675,7 +708,7 @@ function handleProductSelect(productId) {
             lastUpdated: new Date(),
             estructura: [crearComponente('producto', producto)]
         };
-        db.arboles.push(arbolActivo);
+        dbCache.arboles.push(arbolActivo);
         showToast(`Nuevo árbol creado para "${producto.material}".`, 'success');
     }
     renderArbolDetalle();
@@ -761,12 +794,12 @@ function openAssociationSearchModal(searchKey) {
     const config = {
         cliente: {
             title: 'Buscar Cliente',
-            data: db.clientes,
+            data: dbCache.clientes,
             placeholder: 'Buscar por código o descripción...'
         },
         sector: {
             title: 'Buscar Sector',
-            data: db.sectores,
+            data: dbCache.sectores,
             placeholder: 'Buscar por código o descripción...'
         }
     };
@@ -832,10 +865,10 @@ function openAssociationSearchModal(searchKey) {
 
 // --- DASHBOARD SECTOR MODAL ---
 function openSectorProcessesModal(sectorId) {
-    const sector = db.sectores.find(s => s.id === sectorId);
+    const sector = dbCache.sectores.find(s => s.id === sectorId);
     if (!sector) return;
 
-    const processes = db.procesos.filter(p => p.sectorId === sectorId);
+    const processes = dbCache.procesos.filter(p => p.sectorId === sectorId);
     const modalId = `sector-processes-modal-${Date.now()}`;
     
     let processesHTML = '';
@@ -898,7 +931,7 @@ function handleSearch() {
     const config = viewConfig[currentView];
     if (!config.dataKey) return;
     
-    const filteredData = db[config.dataKey].filter(item => 
+    const filteredData = dbCache[config.dataKey].filter(item =>
         Object.values(item).some(value => String(value).toLowerCase().includes(searchTerm))
     );
     renderTable(filteredData, config);
@@ -947,26 +980,26 @@ function handleExport(type) {
 }
 
 // --- APP INITIALIZATION ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Handle view based on URL parameter
     const urlParams = new URLSearchParams(window.location.search);
     const view = urlParams.get('view');
     if (view && viewConfig[view]) {
-        switchView(view);
+        await switchView(view);
     } else {
-        switchView('dashboard'); // Default view
+        await switchView('dashboard'); // Default view
     }
     refreshIcons();
 
     // Handle navigation clicks within the sidebar
-    document.getElementById('accordionSidebar').addEventListener('click', (e) => {
+    document.getElementById('accordionSidebar').addEventListener('click', async (e) => {
         const link = e.target.closest('a.collapse-item');
         if (link && link.href.includes('app1.html?view=')) {
             e.preventDefault();
             const url = new URL(link.href);
             const viewToLoad = url.searchParams.get('view');
             if (viewToLoad) {
-                switchView(viewToLoad);
+                await switchView(viewToLoad);
                 // Update URL without reloading for better UX
                 history.pushState({view: viewToLoad}, '', `app1.html?view=${viewToLoad}`);
             }
