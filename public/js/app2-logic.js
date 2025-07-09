@@ -1,6 +1,30 @@
-import { db } from './database.js';
+import {
+    db,
+    fetchCollectionData
+} from './database.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+const dbCache = {
+    clientes: [],
+    productos: [],
+    subproductos: [],
+    insumos: [],
+    sectores: [],
+    procesos: []
+};
+
+async function loadCollection(name) {
+    dbCache[name] = await fetchCollectionData(name);
+}
+
+async function ensureCollections(names = []) {
+    for (const n of names) {
+        if (!Array.isArray(dbCache[n]) || dbCache[n].length === 0) {
+            await loadCollection(n);
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
     // --- Lógica del Visualizador Sinóptico ---
     
     // --- Elementos del DOM y Estado ---
@@ -23,29 +47,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const expandedNodes = new Set();
     
     // --- MAPEO DE DATOS ---
-    // En un futuro, estos datos vendrán de Firestore. Por ahora, usamos el objeto 'db' importado.
     const allItemsMap = new Map();
-    Object.values(db.clientes).forEach(c => { 
-        c.type = 'cliente'; 
-        c.products = db.productos.filter(p => p.clienteId === c.id).map(p => p.id);
+    await ensureCollections(['clientes','productos','subproductos','insumos','sectores','procesos']);
+    dbCache.clientes.forEach(c => {
+        c.type = 'cliente';
+        c.products = dbCache.productos.filter(p => p.clienteId === c.id).map(p => p.id);
         allItemsMap.set(c.id, c);
     });
-    Object.values(db.productos).forEach(p => { 
-        p.type = 'producto'; 
-        p.subproducts = db.subproductos.filter(s => s.productoId === p.id).map(s => s.id); // Asumiendo relación
+    dbCache.productos.forEach(p => {
+        p.type = 'producto';
+        p.subproducts = dbCache.subproductos.filter(s => s.productoId === p.id).map(s => s.id);
         allItemsMap.set(p.id, p);
     });
-    Object.values(db.subproductos).forEach(s => {
+    dbCache.subproductos.forEach(s => {
         s.type = 'subproducto';
-        s.insumos = db.insumos.filter(i => i.subproductoId === s.id).map(i => i.id); // Asumiendo relación
+        s.insumos = dbCache.insumos.filter(i => i.subproductoId === s.id).map(i => i.id);
         allItemsMap.set(s.id, s);
     });
-    Object.values(db.insumos).forEach(i => {
+    dbCache.insumos.forEach(i => {
         i.type = 'insumo';
         allItemsMap.set(i.id, i);
     });
-    Object.values(db.sectores).forEach(s => allItemsMap.set(s.id, s));
-    Object.values(db.procesos).forEach(p => allItemsMap.set(p.id, p));
+    dbCache.sectores.forEach(s => allItemsMap.set(s.id, s));
+    dbCache.procesos.forEach(p => allItemsMap.set(p.id, p));
 
 
     // --- Sistema de Notificaciones Toast ---
@@ -89,8 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchTerm = searchInput.value.toLowerCase();
         treeContainer.innerHTML = ''; 
         
-        const clientIdsToRender = activeFilters.clients.size > 0 ? [...activeFilters.clients] : db.clientes.map(c => c.id);
-        const rootClients = db.clientes.filter(c => clientIdsToRender.includes(c.id));
+        const clientIdsToRender = activeFilters.clients.size > 0 ? [...activeFilters.clients] : dbCache.clientes.map(c => c.id);
+        const rootClients = dbCache.clientes.filter(c => clientIdsToRender.includes(c.id));
         let hasVisibleNodes = false;
         rootClients.forEach((client, index) => {
             const isLast = index === rootClients.length - 1;
@@ -198,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function populateAddClientFilterDropdown() {
         addClientFilterDropdown.innerHTML = '';
-        const availableClients = db.clientes.filter(client => !activeFilters.clients.has(client.id));
+        const availableClients = dbCache.clientes.filter(client => !activeFilters.clients.has(client.id));
         
         if (availableClients.length === 0) {
              addClientFilterDropdown.innerHTML = `<span class="block px-4 py-2 text-sm text-slate-500">No hay más clientes para agregar.</span>`;
@@ -258,8 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
     exportXlsxBtn.addEventListener('click', (e) => {
         e.preventDefault();
         const dataToExport = [];
-        const clientIdsToRender = activeFilters.clients.size > 0 ? [...activeFilters.clients] : db.clientes.map(c => c.id);
-        const rootClients = db.clientes.filter(c => clientIdsToRender.includes(c.id)).sort((a,b) => a.descripcion.localeCompare(b.descripcion));
+        const clientIdsToRender = activeFilters.clients.size > 0 ? [...activeFilters.clients] : dbCache.clientes.map(c => c.id);
+        const rootClients = dbCache.clientes.filter(c => clientIdsToRender.includes(c.id)).sort((a,b) => a.descripcion.localeCompare(b.descripcion));
         function traverseForExcel(item, level) {
              if (!item || !itemOrDescendantsMatch(item, searchInput.value.toLowerCase()) || !activeFilters.types.has(item.type)) return;
              dataToExport.push({
@@ -295,8 +319,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const doc = new jsPDF({ orientation: 'landscape' });
                 
                 const rows = [];
-                const clientIdsToRender = activeFilters.clients.size > 0 ? [...activeFilters.clients] : db.clientes.map(c => c.id);
-                const rootClients = db.clientes
+                const clientIdsToRender = activeFilters.clients.size > 0 ? [...activeFilters.clients] : dbCache.clientes.map(c => c.id);
+                const rootClients = dbCache.clientes
                     .filter(c => clientIdsToRender.includes(c.id))
                     .sort((a, b) => a.descripcion.localeCompare(b.description));
                 function traverseForPdf(item, prefix, isLastNode, level) {
