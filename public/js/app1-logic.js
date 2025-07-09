@@ -272,8 +272,11 @@ function switchView(viewName) {
         tableContainer.classList.remove('hidden');
         headerActions.classList.remove('hidden');
         addButtonText.textContent = `Agregar ${config.title.slice(0, -1)}`;
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.classList.remove('hidden');
         currentData = [...db[config.dataKey]];
         renderTable(currentData, config);
+        if (spinner) spinner.classList.add('hidden');
     }
     searchInput.value = '';
 }
