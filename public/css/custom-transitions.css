@@ -1,0 +1,7 @@
+.sidebar {
+    transition: width .3s ease;
+}
+
+.sidebar.toggled {
+    width: 0 !important;
+}
