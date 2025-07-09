@@ -1,0 +1,21 @@
+:root {
+  --bg-color: #f8f9fc;
+  --text-color: #5a5c69;
+  --sidebar-bg: #4e73df;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.sidebar {
+  background-color: var(--sidebar-bg) !important;
+  background-image: none !important;
+}
+
+.dark-mode {
+  --bg-color: #1f2937;
+  --text-color: #f8f9fa;
+  --sidebar-bg: #343a40;
+}
