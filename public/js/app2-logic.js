@@ -51,12 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Sistema de Notificaciones Toast ---
     function showToast(message, type = 'success') {
         const iconMap = {
-            success: { name: 'check-circle', color: 'text-green-500' },
-            error: { name: 'x-circle', color: 'text-red-500' },
-            info: { name: 'info', color: 'text-blue-500' }
+            success: { name: 'check-circle', color: 'text-green-500', border: 'border-green-500' },
+            error: { name: 'x-circle', color: 'text-red-500', border: 'border-red-500' },
+            info: { name: 'info', color: 'text-blue-500', border: 'border-blue-500' }
         };
         const toast = document.createElement('div');
-        toast.className = `toast flex items-center w-full max-w-xs p-4 text-gray-500 bg-white rounded-lg shadow-lg`;
+        toast.className = `toast flex items-center w-full max-w-xs p-4 text-gray-700 bg-white rounded-lg shadow-lg border-l-4 ${iconMap[type].border}`;
         toast.setAttribute('role', 'alert');
         toast.setAttribute('aria-atomic', 'true');
         toast.innerHTML = `
